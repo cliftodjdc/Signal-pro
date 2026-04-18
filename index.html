@@ -12,16 +12,13 @@
         body { background-color: #050505; color: #ffffff; font-family: 'Inter', sans-serif; min-height: 100vh; margin: 0; display: flex; flex-direction: column; }
         .card { background-color: #0f0f0f; border: 1px solid #1f1f1f; border-radius: 8px; }
         .btn-risk { flex: 1; height: 32px; font-size: 10px; font-weight: 800; border-radius: 4px; border: 1px solid #222; color: #444; background: transparent; }
+        
+        /* Active States */
         .active-buy { background-color: #10b981 !important; color: white !important; border-color: #10b981 !important; }
         .active-dca { background-color: #3b82f6 !important; color: white !important; border-color: #3b82f6 !important; }
         .active-sell { background-color: #ef4444 !important; color: white !important; border-color: #ef4444 !important; }
         
-        /* THE KEY FIX: Forced height on mobile, auto on desktop */
-        #chartWrapper { 
-            position: relative; 
-            width: 100%; 
-            height: 350px; /* Forced height for mobile */
-        }
+        #chartWrapper { position: relative; width: 100%; height: 350px; }
         @media (min-width: 1024px) { 
             body { overflow: hidden; height: 100vh; } 
             #chartWrapper { height: 100%; flex: 1; }
@@ -46,26 +43,27 @@
                 <p class="text-[9px] font-bold text-gray-500 uppercase tracking-widest mb-2">Market State</p>
                 <div id="price" class="text-4xl font-black tracking-tighter mb-1">$0.00</div>
                 <div id="riskDisplay" class="text-xs font-bold text-gray-400 mb-4">Risk: 0/10</div>
-                <div id="risk-status" class="py-2 px-4 rounded text-center text-[9px] font-black uppercase bg-gray-900 text-gray-600">Initializing...</div>
+                <div id="risk-status" class="py-2 px-4 rounded text-center text-[9px] font-black uppercase bg-gray-900 text-gray-600 tracking-widest">Awaiting Strategy...</div>
             </div>
 
             <div class="card p-6 mb-4">
                 <h3 class="text-[9px] font-bold text-gray-500 uppercase tracking-widest mb-6 italic">Strategy Sandbox</h3>
                 <div class="space-y-6">
-                    <div><span class="text-[8px] font-black text-emerald-500 uppercase block mb-3">Buy</span><div id="buyRow" class="flex gap-1 justify-between"></div></div>
-                    <div><span class="text-[8px] font-black text-blue-500 uppercase block mb-3">DCA</span><div id="dcaRow" class="flex gap-1 justify-between"></div></div>
-                    <div><span class="text-[8px] font-black text-red-500 uppercase block mb-3">Sell</span><div id="sellRow" class="flex gap-1 justify-between"></div></div>
+                    <div><span class="text-[8px] font-black text-emerald-500 uppercase block mb-3">Buy Zone</span><div id="buyRow" class="flex gap-1 justify-between"></div></div>
+                    <div><span class="text-[8px] font-black text-blue-500 uppercase block mb-3">DCA Zone</span><div id="dcaRow" class="flex gap-1 justify-between"></div></div>
+                    <div><span class="text-[8px] font-black text-red-500 uppercase block mb-3">Sell Zone</span><div id="sellRow" class="flex gap-1 justify-between"></div></div>
                 </div>
             </div>
         </div>
 
         <div class="flex-1 p-4 lg:p-8 flex flex-col bg-black">
             <div class="flex justify-between items-center mb-4">
-                <h3 class="text-[10px] font-black uppercase text-gray-500">History</h3>
+                <h3 class="text-[10px] font-black uppercase text-gray-500">Signal Visualizer</h3>
                 <div class="flex gap-4 text-[8px] font-bold text-gray-600 uppercase">
                     <span><span class="text-emerald-500">●</span> Buy</span>
                     <span><span class="text-blue-500">●</span> DCA</span>
                     <span><span class="text-red-500">●</span> Sell</span>
+                    <span><span class="text-gray-700">●</span> Neutral</span>
                 </div>
             </div>
             <div id="chartWrapper">
@@ -81,7 +79,7 @@
 
         let chartInstance = null;
         let globalMarketData = [];
-        let strategies = { buy: [1, 2, 3], dca: [4, 5, 6, 7], sell: [8, 9, 10] };
+        let strategies = { buy: [1, 2], dca: [3, 4, 5], sell: [9, 10] }; // Default presets
 
         function createButtons() {
             ['buy', 'dca', 'sell'].forEach(cat => {
@@ -91,12 +89,22 @@
                 for (let i = 1; i <= 10; i++) {
                     const btn = document.createElement('button');
                     btn.innerText = i;
-                    btn.className = `btn-risk ${strategies[cat].includes(i) ? 'active-' + cat : ''}`;
+                    const isActive = strategies[cat].includes(i);
+                    btn.className = `btn-risk ${isActive ? 'active-' + cat : ''}`;
+                    
                     btn.onclick = () => {
+                        const isAlreadyActive = strategies[cat].includes(i);
+                        
+                        // 1. Remove from all categories to ensure no overlap
                         strategies.buy = strategies.buy.filter(r => r !== i);
                         strategies.dca = strategies.dca.filter(r => r !== i);
                         strategies.sell = strategies.sell.filter(r => r !== i);
-                        if (!strategies[cat].includes(i)) strategies[cat].push(i);
+                        
+                        // 2. If it WASN'T active in the clicked category, add it (Toggle ON)
+                        if (!isAlreadyActive) {
+                            strategies[cat].push(i);
+                        }
+                        
                         createButtons();
                         updateUI();
                     };
@@ -116,10 +124,17 @@
             const latest = globalMarketData[globalMarketData.length - 1];
             document.getElementById('price').innerText = `$${latest.price.toLocaleString(undefined, {minimumFractionDigits: 2})}`;
             document.getElementById('riskDisplay').innerText = `Risk Level: ${latest.risk_level}/10`;
+            
             const statusEl = document.getElementById('risk-status');
-            if (strategies.sell.includes(latest.risk_level)) { statusEl.innerText = "SIGNAL: SELL"; statusEl.className = "py-2 px-4 rounded text-center text-[9px] font-black uppercase bg-red-900/30 text-red-500"; }
-            else if (strategies.buy.includes(latest.risk_level)) { statusEl.innerText = "SIGNAL: BUY"; statusEl.className = "py-2 px-4 rounded text-center text-[9px] font-black uppercase bg-emerald-900/30 text-emerald-500"; }
-            else { statusEl.innerText = "SIGNAL: DCA"; statusEl.className = "py-2 px-4 rounded text-center text-[9px] font-black uppercase bg-blue-900/30 text-blue-500"; }
+            if (strategies.sell.includes(latest.risk_level)) { 
+                statusEl.innerText = "SIGNAL: SELL"; statusEl.className = "py-2 px-4 rounded text-center text-[9px] font-black uppercase bg-red-900/30 text-red-500 tracking-widest"; 
+            } else if (strategies.buy.includes(latest.risk_level)) { 
+                statusEl.innerText = "SIGNAL: BUY"; statusEl.className = "py-2 px-4 rounded text-center text-[9px] font-black uppercase bg-emerald-900/30 text-emerald-500 tracking-widest"; 
+            } else if (strategies.dca.includes(latest.risk_level)) {
+                statusEl.innerText = "SIGNAL: DCA"; statusEl.className = "py-2 px-4 rounded text-center text-[9px] font-black uppercase bg-blue-900/30 text-blue-500 tracking-widest";
+            } else {
+                statusEl.innerText = "NEUTRAL / IGNORE"; statusEl.className = "py-2 px-4 rounded text-center text-[9px] font-black uppercase bg-gray-900 text-gray-500 tracking-widest";
+            }
             renderChart();
         }
 
@@ -132,19 +147,18 @@
                     labels: globalMarketData.map(d => d.created_at),
                     datasets: [{
                         data: globalMarketData.map(d => d.price),
-                        borderColor: '#222', borderWidth: 1.5, pointRadius: 1.5,
+                        borderColor: '#1a1a1a', borderWidth: 1.5, pointRadius: 2,
                         pointBackgroundColor: globalMarketData.map(d => {
                             if (strategies.sell.includes(d.risk_level)) return '#ef4444';
                             if (strategies.buy.includes(d.risk_level)) return '#10b981';
                             if (strategies.dca.includes(d.risk_level)) return '#3b82f6';
-                            return '#222';
+                            return '#333'; // GRAY for unselected levels
                         }),
                         pointBorderColor: 'transparent', tension: 0.1
                     }]
                 },
                 options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
+                    responsive: true, maintainAspectRatio: false,
                     animation: false,
                     plugins: { legend: { display: false } },
                     scales: {
